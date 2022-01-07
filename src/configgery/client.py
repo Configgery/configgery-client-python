@@ -1,5 +1,6 @@
 import json
-from typing import Dict, Any, NamedTuple, List, Optional
+from datetime import datetime, timezone
+from typing import NamedTuple, List, Optional
 from uuid import UUID
 
 from urllib3 import PoolManager
@@ -17,6 +18,7 @@ class CurrentConfigurations(NamedTuple):
     device_group_id: UUID
     device_group_version: int
     configurations: List[Configuration]
+    last_loaded: datetime
 
 
 class Client:
@@ -53,5 +55,6 @@ class Client:
                     alias=config.get('alias'),
                 )
                 for config in data['configurations']
-            ]
+            ],
+            last_loaded=datetime.now(tz=timezone.utc)
         )
