@@ -96,7 +96,6 @@ class State(Enum):
 
     Invalid_FailedToLoadMetadata = auto()
     Invalid_FailedToDownload = auto()
-    Invalid_FailedToWrite = auto()
 
 
 class Client:

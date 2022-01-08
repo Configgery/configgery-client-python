@@ -3,7 +3,7 @@ import tempfile
 from datetime import datetime, timezone
 from itertools import chain
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
@@ -174,6 +174,65 @@ def test_remove_old_files_and_dirs(configuration_directory, certificate, private
         configurations_dir.joinpath('foo.json'),
         configurations_dir.joinpath('bar.json'),
     }
+
+
+def test_load_device_group_metadata(configuration_directory, certificate, private_key):
+    now = datetime.now(tz=timezone.utc)
+
+    c = Client(configuration_directory, certificate, private_key)
+    assert c.device_group_metadata is None
+
+    with MagicMock() as mock_poolmanager:
+        c._pool = mock_poolmanager
+        mock_poolmanager.request.side_effect = [
+            FakeHTTPResponse(
+                status=200,
+                data=json.dumps({
+                    'device_group_id': '85ffb504-cc91-4710-a0e7-e05599b19d0b',
+                    'device_group_version': 1,
+                    'configurations_metadata': [
+                        {
+                            'configuration_id': 'e312aa23-f8a8-4142-9a21-be640be7e547',
+                            'path': 'foo.json',
+                            'md5': '99914b932bd37a50b983c5e7c90ae93b',
+                            'version': 1,
+                        },
+                        {
+                            'configuration_id': '85d0acae-4a9c-49ce-b8dc-f8a41c6c6c6a',
+                            'path': 'bar.json',
+                            'md5': '3d29a75fcf0ed7dfff86d3db8f92fc69',
+                            'version': 2,
+                            'alias': 'abc.json',
+                        },
+                    ],
+                }, indent=2).encode()
+            )
+        ]
+
+        with freeze_time(now):
+            c.load_device_group_metadata()
+
+    assert c.device_group_metadata == DeviceGroupMetadata(
+        device_group_id=UUID('85ffb504-cc91-4710-a0e7-e05599b19d0b'),
+        device_group_version=1,
+        configurations_metadata={
+            ConfigurationMetadata(
+                configuration_id=UUID('e312aa23-f8a8-4142-9a21-be640be7e547'),
+                path='foo.json',
+                md5='99914b932bd37a50b983c5e7c90ae93b',
+                version=1,
+                alias=None,
+            ),
+            ConfigurationMetadata(
+                configuration_id=UUID('85d0acae-4a9c-49ce-b8dc-f8a41c6c6c6a'),
+                path='bar.json',
+                md5='3d29a75fcf0ed7dfff86d3db8f92fc69',
+                version=2,
+                alias='abc.json',
+            ),
+        },
+        last_loaded=now
+    )
 
 
 def test_download_new_configurations(configuration_directory, certificate, private_key):
