@@ -1,8 +1,9 @@
 import json
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from itertools import chain
 from pathlib import Path
+from typing import Optional
 from unittest.mock import MagicMock
 from uuid import UUID
 
@@ -19,21 +20,7 @@ def configuration_directory() -> Path:
         yield Path(d)
 
 
-@pytest.fixture
-def certificate() -> Path:
-    with tempfile.NamedTemporaryFile() as f:
-        f.write(b'')
-        yield Path(f.name)
-
-
-@pytest.fixture
-def private_key() -> Path:
-    with tempfile.NamedTemporaryFile() as f:
-        f.write(b'')
-        yield Path(f.name)
-
-
-def default_device_group_metadata():
+def default_device_group_metadata(last_loaded: Optional[datetime] = None):
     return {
         'device_group_id': '85ffb504-cc91-4710-a0e7-e05599b19d0b',
         'device_group_version': 1,
@@ -52,7 +39,8 @@ def default_device_group_metadata():
                 'alias': 'abc.json',
             },
         ],
-        'version': 1
+        'version': 1,
+        'last_loaded': (last_loaded or (datetime.now(tz=timezone.utc) - timedelta(days=1))).isoformat(),
     }
 
 
@@ -65,17 +53,16 @@ def all_files_and_dirs(d):
     return {f for f in chain(d.glob('**/*'), d.glob('*'))}
 
 
-def test_init_no_previous_configurations(configuration_directory, certificate, private_key):
-    c = Client(configuration_directory, certificate, private_key)
+def test_init_no_previous_configurations(configuration_directory):
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
     assert c.device_group_metadata is None
 
 
-def test_init_with_configurations(configuration_directory, certificate, private_key):
-    write_metadata(configuration_directory, default_device_group_metadata())
-
+def test_init_with_configurations(configuration_directory):
     now = datetime.now(tz=timezone.utc)
+    write_metadata(configuration_directory, default_device_group_metadata(last_loaded=now))
     with freeze_time(now):
-        c = Client(configuration_directory, certificate, private_key)
+        c = Client(configuration_directory, Path('/cert'), Path('/key'))
     assert c.device_group_metadata is not None
     assert c.device_group_metadata == DeviceGroupMetadata(
         device_group_id=UUID('85ffb504-cc91-4710-a0e7-e05599b19d0b'),
@@ -108,28 +95,28 @@ def test_init_with_configurations(configuration_directory, certificate, private_
     ],
     ids=['validVersion', 'invalidVersion']
 )
-def test_init_with_wrong_file_version(configuration_directory, certificate, private_key, version, loaded):
+def test_init_with_wrong_file_version(configuration_directory, version, loaded):
     m = default_device_group_metadata()
     m['version'] = version
     write_metadata(configuration_directory, m)
 
-    c = Client(configuration_directory, certificate, private_key)
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
     if loaded:
         assert c.device_group_metadata is not None
     else:
         assert c.device_group_metadata is None
 
 
-def test_init_with_corrupt_file(configuration_directory, certificate, private_key):
+def test_init_with_corrupt_file(configuration_directory):
     m = default_device_group_metadata()
     del m['device_group_id']
     write_metadata(configuration_directory, m)
 
-    c = Client(configuration_directory, certificate, private_key)
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
     assert c.device_group_metadata is None
 
 
-def test_outdated_configurations(configuration_directory, certificate, private_key):
+def test_outdated_configurations(configuration_directory):
     m = default_device_group_metadata()
     write_metadata(configuration_directory, m)
 
@@ -139,13 +126,13 @@ def test_outdated_configurations(configuration_directory, certificate, private_k
     with configuration_directory.joinpath('configurations', m['configurations_metadata'][1]['path']).open('wb') as fp:
         fp.write(b'invalid_data')
 
-    c = Client(configuration_directory, certificate, private_key)
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
     outdated_configurations = list(c.outdated_configurations())
     assert len(outdated_configurations) == 1
     assert outdated_configurations[0].configuration_id == UUID(m['configurations_metadata'][1]['configuration_id'])
 
 
-def test_remove_old_files_and_dirs(configuration_directory, certificate, private_key):
+def test_remove_old_files_and_dirs(configuration_directory):
     m = default_device_group_metadata()
     write_metadata(configuration_directory, m)
 
@@ -167,7 +154,7 @@ def test_remove_old_files_and_dirs(configuration_directory, certificate, private
 
     configurations_dir.joinpath('dir1/dir2/dir3').mkdir(parents=True)
 
-    c = Client(configuration_directory, certificate, private_key)
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
     c._remove_old_configurations()
 
     assert all_files_and_dirs(configurations_dir) == {
@@ -176,10 +163,10 @@ def test_remove_old_files_and_dirs(configuration_directory, certificate, private
     }
 
 
-def test_load_device_group_metadata(configuration_directory, certificate, private_key):
+def test_load_device_group_metadata(configuration_directory):
     now = datetime.now(tz=timezone.utc)
 
-    c = Client(configuration_directory, certificate, private_key)
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
     assert c.device_group_metadata is None
 
     with MagicMock() as mock_poolmanager:
@@ -190,7 +177,7 @@ def test_load_device_group_metadata(configuration_directory, certificate, privat
                 data=json.dumps({
                     'device_group_id': '85ffb504-cc91-4710-a0e7-e05599b19d0b',
                     'device_group_version': 1,
-                    'configurations_metadata': [
+                    'configurations': [
                         {
                             'configuration_id': 'e312aa23-f8a8-4142-9a21-be640be7e547',
                             'path': 'foo.json',
@@ -210,7 +197,7 @@ def test_load_device_group_metadata(configuration_directory, certificate, privat
         ]
 
         with freeze_time(now):
-            c.load_device_group_metadata()
+            assert c.load_device_group_metadata()
 
     assert c.device_group_metadata == DeviceGroupMetadata(
         device_group_id=UUID('85ffb504-cc91-4710-a0e7-e05599b19d0b'),
@@ -235,16 +222,17 @@ def test_load_device_group_metadata(configuration_directory, certificate, privat
     )
 
 
-def test_download_new_configurations(configuration_directory, certificate, private_key):
+def test_download_new_configurations(configuration_directory):
     m = default_device_group_metadata()
     write_metadata(configuration_directory, m)
 
     configurations_dir = configuration_directory.joinpath('configurations')
     configurations_dir.mkdir()
+    # Ensure old configurations are deleted
     with configurations_dir.joinpath('oldfile.json').open('wb') as fp:
         fp.write(b'hello world')
 
-    c = Client(configuration_directory, certificate, private_key)
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
         mock_poolmanager.request.side_effect = [

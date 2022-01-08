@@ -47,6 +47,24 @@ class DeviceGroupMetadata(NamedTuple):
         }
 
     @classmethod
+    def from_server(cls, data) -> DeviceGroupMetadata:
+        return DeviceGroupMetadata(
+            device_group_id=UUID(data['device_group_id']),
+            device_group_version=data['device_group_version'],
+            configurations_metadata=set([
+                ConfigurationMetadata(
+                    configuration_id=UUID(config['configuration_id']),
+                    path=config['path'],
+                    md5=config['md5'],
+                    version=config['version'],
+                    alias=config.get('alias'),
+                )
+                for config in data['configurations']
+            ]),
+            last_loaded=datetime.now(tz=timezone.utc)
+        )
+
+    @classmethod
     def from_dict(cls, data) -> DeviceGroupMetadata:
         return DeviceGroupMetadata(
             device_group_id=UUID(data['device_group_id']),
@@ -61,8 +79,7 @@ class DeviceGroupMetadata(NamedTuple):
                 )
                 for config in data['configurations_metadata']
             ]),
-            last_loaded=(datetime.fromisoformat(data['last_loaded']) if 'last_loaded' in data
-                         else datetime.now(tz=timezone.utc))
+            last_loaded=datetime.fromisoformat(data['last_loaded'])
         )
 
 
@@ -119,15 +136,6 @@ class Client:
             logging.info('No metadata file found')
             self._save_metadata_file()
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        self.close()
-
-    def close(self):
-        self._pool.clear()
-
     def _load_metadata_file(self):
         with self.configurations_metadata_file.open('r') as fp:
             data = json.load(fp)
@@ -180,24 +188,23 @@ class Client:
             if config.md5 != file_md5(self.configurations_directory.joinpath(config.path)):
                 yield config
 
-    def load_device_group_metadata(self):
+    def load_device_group_metadata(self) -> bool:
         logging.info('Loading device group metadata')
         r: HTTPResponse = self._pool.request('GET', Client.BASE_URL + 'v1/current_configurations')
         if r.status == 200:
             data = json.loads(r.data.decode('utf-8'))
-            self.device_group_metadata = DeviceGroupMetadata.from_dict(data)
+            self.device_group_metadata = DeviceGroupMetadata.from_server(data)
             self._save_metadata_file()
             self.state = State.MetadataDownloaded
+            return True
         else:
             logging.error(f'Failed to get current device group: {r.status}: {r.data.decode("utf-8")}')
             self.state = State.Invalid_FailedToLoadMetadata
             self.device_group_metadata = None
+            return False
 
     def download_configurations(self) -> bool:
-        if self.device_group_metadata is None:
-            self.load_device_group_metadata()
-
-        if self.device_group_metadata is None:
+        if self.device_group_metadata is None and not self.load_device_group_metadata():
             return False
 
         self._remove_old_configurations()
