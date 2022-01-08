@@ -225,6 +225,7 @@ class Client:
                                f'Received response {r.status}: {r.data.decode("utf-8")}'))
                     self._state = State.Invalid_FailedToDownload
                     all_ok = False
+                    break
 
         if all_ok:
             self._state = State.Valid
