@@ -20,7 +20,7 @@ def configuration_directory() -> Path:
         yield Path(d)
 
 
-def default_device_group_metadata(last_loaded: Optional[datetime] = None):
+def default_device_group_metadata(last_checked: Optional[datetime] = None):
     return {
         'device_group_id': '85ffb504-cc91-4710-a0e7-e05599b19d0b',
         'device_group_version': 1,
@@ -40,7 +40,7 @@ def default_device_group_metadata(last_loaded: Optional[datetime] = None):
             },
         ],
         'version': 1,
-        'last_loaded': (last_loaded or (datetime.now(tz=timezone.utc) - timedelta(days=1))).isoformat(),
+        'last_checked': (last_checked or (datetime.now(tz=timezone.utc) - timedelta(days=1))).isoformat(),
     }
 
 
@@ -60,7 +60,7 @@ def test_init_no_previous_configurations(configuration_directory):
 
 def test_init_with_configurations(configuration_directory):
     now = datetime.now(tz=timezone.utc)
-    write_metadata(configuration_directory, default_device_group_metadata(last_loaded=now))
+    write_metadata(configuration_directory, default_device_group_metadata(last_checked=now))
     with freeze_time(now):
         c = Client(configuration_directory, Path('/cert'), Path('/key'))
     assert c._device_group_metadata is not None
@@ -83,7 +83,7 @@ def test_init_with_configurations(configuration_directory):
                 alias='abc.json',
             ),
         },
-        last_loaded=now
+        last_checked=now
     )
 
 
@@ -218,7 +218,7 @@ def test_check_latest(configuration_directory):
                 alias='abc.json',
             ),
         },
-        last_loaded=now
+        last_checked=now
     )
 
 

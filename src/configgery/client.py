@@ -28,7 +28,7 @@ class DeviceGroupMetadata(NamedTuple):
     device_group_id: UUID
     device_group_version: int
     configurations_metadata: Set[ConfigurationMetadata]
-    last_loaded: datetime
+    last_checked: datetime
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -44,7 +44,7 @@ class DeviceGroupMetadata(NamedTuple):
                 }
                 for config in self.configurations_metadata
             ],
-            'last_loaded': self.last_loaded.isoformat(),
+            'last_checked': self.last_checked.isoformat(),
             'version': Client.CONFIG_FILE_VERSION,
         }
 
@@ -63,7 +63,7 @@ class DeviceGroupMetadata(NamedTuple):
                 )
                 for config in data['configurations']
             ]),
-            last_loaded=datetime.now(tz=timezone.utc)
+            last_checked=datetime.now(tz=timezone.utc)
         )
 
     @classmethod
@@ -81,7 +81,7 @@ class DeviceGroupMetadata(NamedTuple):
                 )
                 for config in data['configurations_metadata']
             ]),
-            last_loaded=datetime.fromisoformat(data['last_loaded'])
+            last_checked=datetime.fromisoformat(data['last_checked'])
         )
 
 
