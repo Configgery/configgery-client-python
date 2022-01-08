@@ -93,7 +93,7 @@ def file_md5(path: Path) -> str:
     except (FileNotFoundError, PermissionError):
         return ''
     except BaseException as e:
-        log.warning(f'Unexpected exception when reading md5: {str(e)}')
+        log.exception(f'Unexpected exception when reading md5')
         return ''
 
 
@@ -115,6 +115,12 @@ class State(Enum):
 
     Invalid_FailedToLoadMetadata = auto()
     Invalid_FailedToDownload = auto()
+
+
+class DeviceState(Enum):
+    ConfigurationsApplied = auto()
+    Upvote = auto()
+    Downvote = auto()
 
 
 class Client:
@@ -142,7 +148,7 @@ class Client:
             with self._configurations_metadata_file.open('r') as fp:
                 data = json.load(fp)
         except (FileNotFoundError, PermissionError, json.JSONDecodeError) as e:
-            log.error(f'Unable to read cached configuration data: {str(e)}')
+            log.exception(f'Unable to read cached configuration data')
             self._device_group_metadata = None
         else:
             if data['version'] != Client.CONFIG_FILE_VERSION:
@@ -155,7 +161,7 @@ class Client:
 
     def _save_metadata_file(self):
         if self._device_group_metadata is not None:
-            log.info('Saving metadata file')
+            log.info('Saving configuration data')
             data = self._device_group_metadata.to_dict()
             self._configurations_metadata_file.write_text(json.dumps(data, indent=2))
 
@@ -172,14 +178,14 @@ class Client:
                     rel_path = file.relative_to(self._configurations_directory)
                     if file.is_file() and str(rel_path) not in valid_paths:
                         try:
-                            log.debug(f'Deleting file {file}')
+                            log.debug(f'Deleting file "{file}"')
                             file.unlink()
                         except FileNotFoundError:
-                            log.warning(f'Could not delete file {file}')
+                            log.warning(f'Could not delete file "{file}"')
                             # Do nothing
                             pass
                 except ValueError:
-                    log.error(f'Could not understand path for file {file}')
+                    log.error(f'Could not understand path for file "{file}"')
 
             remove_subdirs_if_empty(self._configurations_directory)
 
@@ -187,6 +193,11 @@ class Client:
         for config in self._device_group_metadata.configurations_metadata:
             if config.md5 != file_md5(self._configurations_directory.joinpath(config.path)):
                 yield config
+
+    def is_outdated(self) -> bool:
+        for _ in self.outdated_configurations():
+            return True
+        return False
 
     def check_latest(self) -> bool:
         log.info('Checking for latest configuration data')
@@ -198,7 +209,7 @@ class Client:
             self._state = State.MetadataDownloaded
             return True
         else:
-            log.error(f'Failed to fetch latest configuration data: {r.status}: {r.data.decode("utf-8")}')
+            log.error(f'Failed to fetch latest configuration data: {r.status}: "{r.data.decode("utf-8")}"')
             self._state = State.Invalid_FailedToLoadMetadata
             self._device_group_metadata = None
             return False
@@ -221,14 +232,35 @@ class Client:
                 if r.status == 200:
                     fp.write(r.data)
                 else:
-                    log.error((f'Failed to get configuration {config.configuration_id} version {config.version}. '
-                               f'Received response {r.status}: {r.data.decode("utf-8")}'))
+                    log.error((f'Failed to get configuration "{config.configuration_id}" version {config.version}. '
+                               f'Received response {r.status}: "{r.data.decode("utf-8")}"'))
                     self._state = State.Invalid_FailedToDownload
                     all_ok = False
                     break
 
         if all_ok:
+            log.info('Configurations downloaded')
             self._state = State.Valid
             return True
         else:
+            return False
+
+    def update_state(self, device_state: DeviceState) -> bool:
+        if self._device_group_metadata is None:
+            log.error(f'Cannot update state with "{device_state.name}" without first getting configuration data')
+            return False
+
+        log.info(f'Updating device state with "{device_state.name}"')
+        r = self._pool.request('POST', Client.BASE_URL + 'v1/update_state',
+                               headers={'Content-Type': 'application/json'},
+                               body=json.dumps({
+                                   'device_group_id': str(self._device_group_metadata.device_group_id),
+                                   'device_group_version': self._device_group_metadata.device_group_version,
+                                   'action': device_state.name,
+                               }).encode('utf-8'))
+        if r.status == 200:
+            return True
+        else:
+            log.error(f'Failed to update state with "{device_state.name}". '
+                      f'Received response {r.status}: "{r.data.decode("utf-8")}"')
             return False

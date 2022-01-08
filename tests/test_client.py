@@ -127,6 +127,7 @@ def test_outdated_configurations(configuration_directory):
         fp.write(b'invalid_data')
 
     c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    assert c.is_outdated()
     outdated_configurations = list(c.outdated_configurations())
     assert len(outdated_configurations) == 1
     assert outdated_configurations[0].configuration_id == UUID(m['configurations_metadata'][1]['configuration_id'])
@@ -233,6 +234,7 @@ def test_download_new_configurations(configuration_directory):
         fp.write(b'hello world')
 
     c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    assert c.is_outdated()
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
         mock_poolmanager.request.side_effect = [
@@ -251,3 +253,4 @@ def test_download_new_configurations(configuration_directory):
         configurations_dir.joinpath('foo.json'),
         configurations_dir.joinpath('bar.json'),
     }
+    assert not c.is_outdated()
