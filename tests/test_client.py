@@ -55,7 +55,7 @@ def all_files_and_dirs(d):
 
 def test_init_no_previous_configurations(configuration_directory):
     c = Client(configuration_directory, Path('/cert'), Path('/key'))
-    assert c.device_group_metadata is None
+    assert c._device_group_metadata is None
 
 
 def test_init_with_configurations(configuration_directory):
@@ -63,8 +63,8 @@ def test_init_with_configurations(configuration_directory):
     write_metadata(configuration_directory, default_device_group_metadata(last_loaded=now))
     with freeze_time(now):
         c = Client(configuration_directory, Path('/cert'), Path('/key'))
-    assert c.device_group_metadata is not None
-    assert c.device_group_metadata == DeviceGroupMetadata(
+    assert c._device_group_metadata is not None
+    assert c._device_group_metadata == DeviceGroupMetadata(
         device_group_id=UUID('85ffb504-cc91-4710-a0e7-e05599b19d0b'),
         device_group_version=1,
         configurations_metadata={
@@ -102,9 +102,9 @@ def test_init_with_wrong_file_version(configuration_directory, version, loaded):
 
     c = Client(configuration_directory, Path('/cert'), Path('/key'))
     if loaded:
-        assert c.device_group_metadata is not None
+        assert c._device_group_metadata is not None
     else:
-        assert c.device_group_metadata is None
+        assert c._device_group_metadata is None
 
 
 def test_init_with_corrupt_file(configuration_directory):
@@ -113,7 +113,7 @@ def test_init_with_corrupt_file(configuration_directory):
     write_metadata(configuration_directory, m)
 
     c = Client(configuration_directory, Path('/cert'), Path('/key'))
-    assert c.device_group_metadata is None
+    assert c._device_group_metadata is None
 
 
 def test_outdated_configurations(configuration_directory):
@@ -163,11 +163,11 @@ def test_remove_old_files_and_dirs(configuration_directory):
     }
 
 
-def test_load_device_group_metadata(configuration_directory):
+def test_check_latest(configuration_directory):
     now = datetime.now(tz=timezone.utc)
 
     c = Client(configuration_directory, Path('/cert'), Path('/key'))
-    assert c.device_group_metadata is None
+    assert c._device_group_metadata is None
 
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
@@ -197,9 +197,9 @@ def test_load_device_group_metadata(configuration_directory):
         ]
 
         with freeze_time(now):
-            assert c.load_device_group_metadata()
+            assert c.check_latest()
 
-    assert c.device_group_metadata == DeviceGroupMetadata(
+    assert c._device_group_metadata == DeviceGroupMetadata(
         device_group_id=UUID('85ffb504-cc91-4710-a0e7-e05599b19d0b'),
         device_group_version=1,
         configurations_metadata={
