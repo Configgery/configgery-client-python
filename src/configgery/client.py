@@ -3,110 +3,17 @@ from __future__ import annotations
 import json
 import logging
 import os
-from binascii import hexlify
-from datetime import datetime, timezone
 from enum import Enum, auto
-from hashlib import md5
 from itertools import chain
 from pathlib import Path
-from typing import NamedTuple, Optional, Any, Dict, Set, Generator
-from uuid import UUID
+from typing import Optional, Generator
 
 from urllib3 import PoolManager, HTTPResponse
 
+from .configurations_metadata import DeviceGroupMetadata, load_metadata_file, save_metadata_file, ConfigurationMetadata
+from .file import file_md5, remove_subdirs_if_empty
+
 log = logging.getLogger(__name__)
-
-
-class ConfigurationMetadata(NamedTuple):
-    configuration_id: UUID
-    path: str
-    md5: str
-    version: int
-    alias: Optional[str]
-
-
-class DeviceGroupMetadata(NamedTuple):
-    device_group_id: UUID
-    device_group_version: int
-    configurations_metadata: Set[ConfigurationMetadata]
-    last_checked: datetime
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'device_group_id': str(self.device_group_id),
-            'device_group_version': self.device_group_version,
-            'configurations_metadata': [
-                {
-                    'configuration_id': str(config.configuration_id),
-                    'path': config.path,
-                    'md5': config.md5,
-                    'version': config.version,
-                    'alias': config.alias,
-                }
-                for config in sorted(self.configurations_metadata, key=lambda x: x.path)
-            ],
-            'last_checked': self.last_checked.isoformat(),
-            'version': Client.CONFIG_FILE_VERSION,
-        }
-
-    @classmethod
-    def from_server(cls, data) -> DeviceGroupMetadata:
-        return DeviceGroupMetadata(
-            device_group_id=UUID(data['device_group_id']),
-            device_group_version=data['device_group_version'],
-            configurations_metadata={
-                ConfigurationMetadata(
-                    configuration_id=UUID(config['configuration_id']),
-                    path=config['path'],
-                    md5=config['md5'],
-                    version=config['version'],
-                    alias=config.get('alias'),
-                )
-                for config in data['configurations']
-            },
-            last_checked=datetime.now(tz=timezone.utc)
-        )
-
-    @classmethod
-    def from_dict(cls, data) -> DeviceGroupMetadata:
-        return DeviceGroupMetadata(
-            device_group_id=UUID(data['device_group_id']),
-            device_group_version=data['device_group_version'],
-            configurations_metadata={
-                ConfigurationMetadata(
-                    configuration_id=UUID(config['configuration_id']),
-                    path=config['path'],
-                    md5=config['md5'],
-                    version=config['version'],
-                    alias=config.get('alias'),
-                )
-                for config in data['configurations_metadata']
-            },
-            last_checked=datetime.fromisoformat(data['last_checked'])
-        )
-
-
-def file_md5(path: Path) -> str:
-    # noinspection PyBroadException
-    try:
-        with path.open('rb') as fp:
-            return hexlify(md5(fp.read()).digest()).decode()
-    except (FileNotFoundError, PermissionError):
-        return ''
-    except BaseException as e:
-        log.exception(f'Unexpected exception when reading md5')
-        return ''
-
-
-def remove_subdirs_if_empty(root: Path):
-    for d in root.iterdir():
-        if d.is_dir():
-            remove_subdirs_if_empty(d)
-        try:
-            d.rmdir()
-        except OSError:
-            # Directory not empty
-            pass
 
 
 class State(Enum):
@@ -126,7 +33,6 @@ class DeviceState(Enum):
 
 class Client:
     BASE_URL = 'https://device.api.configgery.com/'
-    CONFIG_FILE_VERSION = 1
 
     def __init__(self, configurations_directory: Path, certificate: Path, private_key: Path):
         self._state: State = State.Outdated
@@ -140,31 +46,9 @@ class Client:
 
         if self._configurations_metadata_file.exists():
             log.info('Loading cached configuration data')
-            self._load_metadata_file()
+            self._device_group_metadata = load_metadata_file(self._configurations_metadata_file)
         else:
             log.info('No cached configuration data found')
-
-    def _load_metadata_file(self):
-        try:
-            with self._configurations_metadata_file.open('r') as fp:
-                data = json.load(fp)
-        except (FileNotFoundError, PermissionError, json.JSONDecodeError) as e:
-            log.exception(f'Unable to read cached configuration data')
-            self._device_group_metadata = None
-        else:
-            if data['version'] != Client.CONFIG_FILE_VERSION:
-                log.warning(f'Invalid file version {data["version"]}')
-                self._device_group_metadata = None
-            elif 'device_group_id' in data:
-                self._device_group_metadata = DeviceGroupMetadata.from_dict(data)
-            else:
-                self._device_group_metadata = None
-
-    def _save_metadata_file(self):
-        if self._device_group_metadata is not None:
-            log.info('Saving configuration data')
-            data = self._device_group_metadata.to_dict()
-            self._configurations_metadata_file.write_text(json.dumps(data, indent=2))
 
     def _remove_old_configurations(self):
         log.info('Removing old configurations')
@@ -196,8 +80,7 @@ class Client:
                 yield config
 
     def is_outdated(self) -> bool:
-        for f in self.outdated_configurations():
-            log.info(f'OUTDATED: {f}')
+        for _ in self.outdated_configurations():
             return True
         return False
 
@@ -207,7 +90,7 @@ class Client:
         if r.status == 200:
             data = json.loads(r.data.decode('utf-8'))
             self._device_group_metadata = DeviceGroupMetadata.from_server(data)
-            self._save_metadata_file()
+            save_metadata_file(self._device_group_metadata, self._configurations_metadata_file)
             self._state = State.MetadataDownloaded
             return True
         else:
