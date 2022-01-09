@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from binascii import hexlify
 from datetime import datetime, timezone
 from enum import Enum, auto
@@ -238,6 +239,9 @@ class Client:
                     self._state = State.Invalid_FailedToDownload
                     all_ok = False
                     break
+
+        if hasattr(os, 'sync'):
+            os.sync()
 
         if all_ok:
             log.info('Configurations downloaded')
