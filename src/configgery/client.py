@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import timedelta, datetime, timezone
 from enum import Enum, auto
 from itertools import chain
 from pathlib import Path
@@ -98,6 +99,13 @@ class Client:
             self._state = State.Invalid_FailedToLoadMetadata
             self._device_group_metadata = None
             return False
+
+    def time_since_last_checked(self) -> timedelta:
+        now = datetime.now(tz=timezone.utc)
+        if self._device_group_metadata is None:
+            return now - datetime.fromtimestamp(0, tz=timezone.utc)
+        else:
+            return now - self._device_group_metadata.last_checked
 
     def download_configurations(self) -> bool:
         if self._device_group_metadata is None and not self.check_latest():

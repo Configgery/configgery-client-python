@@ -222,6 +222,9 @@ def test_check_latest(configuration_directory):
         last_checked=now
     )
 
+    with freeze_time(now + timedelta(hours=1)):
+        assert c.time_since_last_checked() == timedelta(hours=1)
+
 
 def test_download_new_configurations(configuration_directory):
     m = default_device_group_metadata()
