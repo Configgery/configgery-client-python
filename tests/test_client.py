@@ -10,7 +10,7 @@ from uuid import UUID
 import pytest
 from freezegun import freeze_time
 
-from src.configgery.client import Client, DeviceGroupMetadata, ConfigurationMetadata
+from src.configgery.client import Client, DeviceGroupMetadata, ConfigurationMetadata, DeviceState
 from tests.FakeHTTPResponse import FakeHTTPResponse
 
 
@@ -240,11 +240,11 @@ def test_download_new_configurations(configuration_directory):
         mock_poolmanager.request.side_effect = [
             FakeHTTPResponse(
                 status=200,
-                data=b'{}'
+                data=b'{\n}'
             ),
             FakeHTTPResponse(
                 status=200,
-                data=b'{\n}'
+                data=b'{}'
             ),
         ]
         assert c.download_configurations()
@@ -253,4 +253,28 @@ def test_download_new_configurations(configuration_directory):
         configurations_dir.joinpath('foo.json'),
         configurations_dir.joinpath('bar.json'),
     }
-    assert not c.is_outdated()
+    is_outdated = c.is_outdated()
+    if is_outdated:
+        print(is_outdated)
+    assert not is_outdated
+
+
+def test_update_state(configuration_directory):
+    m = default_device_group_metadata()
+    write_metadata(configuration_directory, m)
+
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    with MagicMock() as mock_poolmanager:
+        c._pool = mock_poolmanager
+        mock_poolmanager.request.side_effect = [
+            FakeHTTPResponse(
+                status=200,
+                data=b'OK'
+            )
+        ]
+        assert c.update_state(DeviceState.ConfigurationsApplied)
+
+
+def test_update_state_fails_without_cached_configuration_data(configuration_directory):
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    assert not c.update_state(DeviceState.ConfigurationsApplied)

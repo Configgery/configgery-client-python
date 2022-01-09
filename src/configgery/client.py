@@ -42,7 +42,7 @@ class DeviceGroupMetadata(NamedTuple):
                     'version': config.version,
                     'alias': config.alias,
                 }
-                for config in self.configurations_metadata
+                for config in sorted(self.configurations_metadata, key=lambda x: x.path)
             ],
             'last_checked': self.last_checked.isoformat(),
             'version': Client.CONFIG_FILE_VERSION,
@@ -53,7 +53,7 @@ class DeviceGroupMetadata(NamedTuple):
         return DeviceGroupMetadata(
             device_group_id=UUID(data['device_group_id']),
             device_group_version=data['device_group_version'],
-            configurations_metadata=set([
+            configurations_metadata={
                 ConfigurationMetadata(
                     configuration_id=UUID(config['configuration_id']),
                     path=config['path'],
@@ -62,7 +62,7 @@ class DeviceGroupMetadata(NamedTuple):
                     alias=config.get('alias'),
                 )
                 for config in data['configurations']
-            ]),
+            },
             last_checked=datetime.now(tz=timezone.utc)
         )
 
@@ -71,7 +71,7 @@ class DeviceGroupMetadata(NamedTuple):
         return DeviceGroupMetadata(
             device_group_id=UUID(data['device_group_id']),
             device_group_version=data['device_group_version'],
-            configurations_metadata=set([
+            configurations_metadata={
                 ConfigurationMetadata(
                     configuration_id=UUID(config['configuration_id']),
                     path=config['path'],
@@ -80,7 +80,7 @@ class DeviceGroupMetadata(NamedTuple):
                     alias=config.get('alias'),
                 )
                 for config in data['configurations_metadata']
-            ]),
+            },
             last_checked=datetime.fromisoformat(data['last_checked'])
         )
 
@@ -190,12 +190,13 @@ class Client:
             remove_subdirs_if_empty(self._configurations_directory)
 
     def outdated_configurations(self) -> Generator[ConfigurationMetadata, None, None]:
-        for config in self._device_group_metadata.configurations_metadata:
+        for config in sorted(self._device_group_metadata.configurations_metadata, key=lambda x: x.path):
             if config.md5 != file_md5(self._configurations_directory.joinpath(config.path)):
                 yield config
 
     def is_outdated(self) -> bool:
-        for _ in self.outdated_configurations():
+        for f in self.outdated_configurations():
+            log.info(f'OUTDATED: {f}')
             return True
         return False
 
