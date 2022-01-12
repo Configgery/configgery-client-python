@@ -91,7 +91,7 @@ class Client:
         """
         Check to see if the currently cached configuration data requires a download of configuration files.
         If required, a call to `download_configurations` should be made.
-        :return: A boolean indicating whether a download is required
+        :return: True if a download is required
         """
         for _ in self.outdated_configurations():
             return True
@@ -100,7 +100,8 @@ class Client:
     def check_latest(self) -> bool:
         """
         Check to see if the current configuration data matches that on the server.
-        :return: A boolean indicating whether it was possible to retrieve configuration data from the server
+        :return: True if it was possible to retrieve configuration data from the server
+        :raises urllib3.exceptions.HTTPError:
         """
         log.info('Checking for latest configuration data')
         r: HTTPResponse = self._pool.request('GET', Client.BASE_URL + 'v1/current_configurations')
@@ -132,7 +133,8 @@ class Client:
         Download the latest configurations and save them to disk.
         This will also check for the latest configurations if not already done so,
         and remove old configurations if they are no longer relevant.
-        :return: A boolean indicating if the call was successful
+        :return: True if no download was needed, or the downloads were successful
+        :raises urllib3.exceptions.HTTPError:
         """
         if self._device_group_metadata is None and not self.check_latest():
             return False
@@ -171,7 +173,8 @@ class Client:
         """
         Communicate to the server with the current device state
         :param device_state: An enum value indicating the new state
-        :return: A boolean indicating if the call was successful
+        :return: True if the server call was successful
+        :raises urllib3.exceptions.HTTPError:
         """
         if self._device_group_metadata is None:
             log.error(f'Cannot update state with "{device_state.name}" without first getting configuration data')
@@ -200,7 +203,7 @@ class Client:
         :return: A tuple of two values.
         The first value indicates whether the configuration was successfully retrieved.
         The second value is the file contents
-        :raises FileNotFoundError: File does not exist
+        :raises FileNotFoundError:
         :raises OSError: File is inaccessible (e.g. permission error)
         """
         if self._device_group_metadata is None:
