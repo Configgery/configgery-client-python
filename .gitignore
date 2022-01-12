@@ -1,0 +1,7 @@
+__pycache__
+.DS_Store
+.coverage
+.idea/
+venv/
+dist/
+src/configgery_client_python.egg-info/
