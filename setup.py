@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="configgery-client-python",
-    version="0.0.1",
+    version="1.0.0",
     author="Configgery Pty Ltd",
     author_email="support@configgery.com",
     description="Python client for devices interacting with configgery.com",
