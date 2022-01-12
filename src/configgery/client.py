@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import logging
 import os
@@ -7,7 +8,7 @@ from datetime import timedelta, datetime, timezone
 from enum import Enum, auto
 from itertools import chain
 from pathlib import Path
-from typing import Optional, Generator
+from typing import Optional, Generator, Union, Tuple
 
 from urllib3 import PoolManager, HTTPResponse
 
@@ -35,7 +36,8 @@ class DeviceState(Enum):
 class Client:
     BASE_URL = 'https://device.api.configgery.com/'
 
-    def __init__(self, configurations_directory: Path, certificate: Path, private_key: Path):
+    def __init__(self, configurations_directory: Union[str, Path],
+                 certificate: Union[str, Path], private_key: Union[str, Path]):
         self._state: State = State.Outdated
         self._pool = PoolManager(cert_file=certificate, key_file=private_key)
         self._device_group_metadata: Optional[DeviceGroupMetadata] = None
@@ -76,16 +78,30 @@ class Client:
             remove_subdirs_if_empty(self._configurations_directory)
 
     def outdated_configurations(self) -> Generator[ConfigurationMetadata, None, None]:
+        """
+        List all configurations that are out-of-date.
+        If any configurations are out-of-date, a call to `download_configurations` should be made.
+        :return: A generator yielding configurations that need to be downloaded or replaced with more recent versions
+        """
         for config in sorted(self._device_group_metadata.configurations_metadata, key=lambda x: x.path):
             if config.md5 != file_md5(self._configurations_directory.joinpath(config.path)):
                 yield config
 
-    def is_outdated(self) -> bool:
+    def is_download_needed(self) -> bool:
+        """
+        Check to see if the currently cached configuration data requires a download of configuration files.
+        If required, a call to `download_configurations` should be made.
+        :return: A boolean indicating whether a download is required
+        """
         for _ in self.outdated_configurations():
             return True
         return False
 
     def check_latest(self) -> bool:
+        """
+        Check to see if the current configuration data matches that on the server.
+        :return: A boolean indicating whether it was possible to retrieve configuration data from the server
+        """
         log.info('Checking for latest configuration data')
         r: HTTPResponse = self._pool.request('GET', Client.BASE_URL + 'v1/current_configurations')
         if r.status == 200:
@@ -101,6 +117,10 @@ class Client:
             return False
 
     def time_since_last_checked(self) -> timedelta:
+        """
+        Time since checking for the latest configuration data from the server
+        :return: `timedelta` object
+        """
         now = datetime.now(tz=timezone.utc)
         if self._device_group_metadata is None:
             return now - datetime.fromtimestamp(0, tz=timezone.utc)
@@ -108,6 +128,12 @@ class Client:
             return now - self._device_group_metadata.last_checked
 
     def download_configurations(self) -> bool:
+        """
+        Download the latest configurations and save them to disk.
+        This will also check for the latest configurations if not already done so,
+        and remove old configurations if they are no longer relevant.
+        :return: A boolean indicating if the call was successful
+        """
         if self._device_group_metadata is None and not self.check_latest():
             return False
 
@@ -142,6 +168,11 @@ class Client:
             return False
 
     def update_state(self, device_state: DeviceState) -> bool:
+        """
+        Communicate to the server with the current device state
+        :param device_state: An enum value indicating the new state
+        :return: A boolean indicating if the call was successful
+        """
         if self._device_group_metadata is None:
             log.error(f'Cannot update state with "{device_state.name}" without first getting configuration data')
             return False
@@ -160,3 +191,32 @@ class Client:
             log.error(f'Failed to update state with "{device_state.name}". '
                       f'Received response {r.status}: "{r.data.decode("utf-8")}"')
             return False
+
+    def get_configuration(self, path: str) -> Tuple[bool, bytes]:
+        """
+        Retrieve a configuration that has been downloaded onto the device
+        :param path: Path of configuration. If not path with this value exists,
+        match with any configuration with that alias.
+        :return: A tuple of two values.
+        The first value indicates whether the configuration was successfully retrieved.
+        The second value is the file contents
+        :raises FileNotFoundError: File does not exist
+        :raises OSError: File is inaccessible (e.g. permission error)
+        """
+        if self._device_group_metadata is None:
+            log.error(f'Cannot get configuration "{path}" without first getting configuration data')
+            return False, b''
+
+        if self.is_download_needed():
+            log.error(f'Cannot get configuration "{path}" with outdated configurations')
+            return False, b''
+
+        for config in self._device_group_metadata.configurations_metadata:
+            if config.path == path:
+                return True, self._configurations_directory.joinpath(config.path).read_bytes()
+
+        for config in self._device_group_metadata.configurations_metadata:
+            if config.alias == path:
+                return True, self._configurations_directory.joinpath(config.alias).read_bytes()
+
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), path)
