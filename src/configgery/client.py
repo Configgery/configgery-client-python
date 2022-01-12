@@ -41,11 +41,11 @@ class Client:
         self._state: State = State.Outdated
         self._pool = PoolManager(cert_file=certificate, key_file=private_key)
         self._device_group_metadata: Optional[DeviceGroupMetadata] = None
-        self._configurations_directory = Path(configurations_directory)
 
-        self._configurations_directory = configurations_directory.joinpath('configurations')
+        root_directory = Path(configurations_directory)
+        self._configurations_directory = root_directory.joinpath('configurations')
         self._configurations_directory.mkdir(exist_ok=True)
-        self._configurations_metadata_file = configurations_directory.joinpath('configurations.json')
+        self._configurations_metadata_file = root_directory.joinpath('configurations.json')
 
         if self._configurations_metadata_file.exists():
             log.info('Loading cached configuration data')
