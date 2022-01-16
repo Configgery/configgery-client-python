@@ -44,7 +44,7 @@ class Client:
 
         root_directory = Path(configurations_directory)
         self._configurations_directory = root_directory.joinpath('configurations')
-        self._configurations_directory.mkdir(exist_ok=True)
+        self._configurations_directory.mkdir(parents=True, exist_ok=True)
         self._configurations_metadata_file = root_directory.joinpath('configurations.json')
 
         if self._configurations_metadata_file.exists():
@@ -144,7 +144,7 @@ class Client:
         all_ok = True
         for config in self.outdated_configurations():
             path = self._configurations_directory.joinpath(config.path)
-            path.parent.mkdir(exist_ok=True)
+            path.parent.mkdir(parents=True, exist_ok=True)
             with path.open('wb') as fp:
                 r = self._pool.request('GET', Client.BASE_URL + 'v1/configuration', fields={
                     'configuration_id': config.configuration_id,
