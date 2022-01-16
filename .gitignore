@@ -4,4 +4,4 @@ __pycache__
 .idea/
 venv/
 dist/
-src/configgery_client_python.egg-info/
+src/configgery_client.egg-info/

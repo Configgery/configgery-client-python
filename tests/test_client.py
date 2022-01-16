@@ -262,6 +262,55 @@ def test_download_new_configurations(configuration_directory):
     assert not download_needed
 
 
+def test_make_parent_directories_for_configuration_metadata():
+    with tempfile.TemporaryDirectory() as d:
+        configuration_directory = Path(d).joinpath('a/b/c')
+        assert not configuration_directory.exists()
+        _ = Client(configuration_directory, Path('/cert'), Path('/key'))
+        assert configuration_directory.exists()
+
+
+def test_make_parent_directories_for_configuration_files(configuration_directory):
+    m = default_device_group_metadata()
+    m['configurations_metadata'].append({
+        'configuration_id': '2bfb6125-96fd-402f-a585-1799612bf9cc',
+        'path': 'a/b/c/d.json',
+        'md5': '99914b932bd37a50b983c5e7c90ae93b',
+        'version': 1,
+    })
+    write_metadata(configuration_directory, m)
+
+    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+
+    with MagicMock() as mock_poolmanager:
+        c._pool = mock_poolmanager
+        mock_poolmanager.request.side_effect = [
+            FakeHTTPResponse(
+                status=200,
+                data=b'{}'
+            ),
+            FakeHTTPResponse(
+                status=200,
+                data=b'{\n}'
+            ),
+            FakeHTTPResponse(
+                status=200,
+                data=b'{}'
+            ),
+        ]
+        assert c.download_configurations()
+
+    configurations_dir = configuration_directory.joinpath('configurations')
+    assert all_files_and_dirs(configurations_dir) == {
+        configurations_dir.joinpath('a'),
+        configurations_dir.joinpath('a/b'),
+        configurations_dir.joinpath('a/b/c'),
+        configurations_dir.joinpath('a/b/c/d.json'),
+        configurations_dir.joinpath('foo.json'),
+        configurations_dir.joinpath('bar.json'),
+    }
+
+
 def test_update_state(configuration_directory):
     m = default_device_group_metadata()
     write_metadata(configuration_directory, m)
