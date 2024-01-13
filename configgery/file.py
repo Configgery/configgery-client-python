@@ -3,7 +3,7 @@ from binascii import hexlify
 from hashlib import md5
 from pathlib import Path
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def file_md5(path: Path) -> str:
@@ -13,8 +13,8 @@ def file_md5(path: Path) -> str:
             return hexlify(md5(fp.read()).digest()).decode()
     except (FileNotFoundError, PermissionError):
         return ''
-    except BaseException as e:
-        log.exception(f'Unexpected exception when reading md5')
+    except BaseException:
+        logger.exception(f'Unexpected exception when reading md5')
         return ''
 
 
