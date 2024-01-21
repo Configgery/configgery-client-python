@@ -10,7 +10,7 @@ from uuid import UUID
 import pytest
 from freezegun import freeze_time
 
-from src.configgery.client import Client, DeviceGroupMetadata, ConfigurationMetadata, DeviceState
+from configgery.client import Client, DeviceGroupMetadata, ConfigurationMetadata, DeviceState
 from tests.FakeHTTPResponse import FakeHTTPResponse
 
 

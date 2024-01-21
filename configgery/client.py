@@ -34,7 +34,7 @@ class DeviceState(Enum):
 
 
 class Client:
-    BASE_URL = 'https://device.api.configgery.com/'
+    BASE_URL = 'https://api.configgery.com/device/'
 
     def __init__(self, configurations_directory: Union[str, Path],
                  certificate: Union[str, Path], private_key: Union[str, Path]):
