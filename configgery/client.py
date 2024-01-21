@@ -10,7 +10,7 @@ from itertools import chain
 from pathlib import Path
 from typing import Optional, Generator, Union, Tuple
 
-from urllib3 import PoolManager, HTTPResponse
+from urllib3 import PoolManager, BaseHTTPResponse
 
 from .configurations_metadata import DeviceGroupMetadata, load_metadata_file, save_metadata_file, ConfigurationMetadata
 from .file import file_md5, remove_subdirs_if_empty
@@ -27,19 +27,24 @@ class State(Enum):
     Invalid_FailedToDownload = auto()
 
 
-class DeviceState(Enum):
-    ConfigurationsApplied = auto()
-    Upvote = auto()
-    Downvote = auto()
+class DeviceState(str, Enum):
+    Configurations_Applied = "configurations_applied"
+    Upvote = "upvote"
+    Downvote = "downvote"
 
 
 class Client:
     BASE_URL = 'https://api.configgery.com/device/'
 
-    def __init__(self, configurations_directory: Union[str, Path],
-                 certificate: Union[str, Path], private_key: Union[str, Path]):
+    def __init__(self, configurations_directory: Union[str, Path], api_key: str):
+        """
+        :param configurations_directory: Directory to store configuration files
+        :param api_key: API key for the device
+        """
         self._state: State = State.Outdated
-        self._pool = PoolManager(cert_file=certificate, key_file=private_key)
+        self._pool = PoolManager(headers={
+            "Authorization": f"Basic {api_key}"
+        })
         self._device_group_metadata: Optional[DeviceGroupMetadata] = None
 
         root_directory = Path(configurations_directory)
@@ -104,7 +109,7 @@ class Client:
         :raises urllib3.exceptions.HTTPError:
         """
         log.info('Checking for latest configuration data')
-        r: HTTPResponse = self._pool.request('GET', Client.BASE_URL + 'v1/current_configurations')
+        r: BaseHTTPResponse = self._pool.request('GET', Client.BASE_URL + 'v1/current_configurations')
         if r.status == 200:
             data = json.loads(r.data.decode('utf-8'))
             self._device_group_metadata = DeviceGroupMetadata.from_server(data)
@@ -177,21 +182,20 @@ class Client:
         :raises urllib3.exceptions.HTTPError:
         """
         if self._device_group_metadata is None:
-            log.error(f'Cannot update state with "{device_state.name}" without first getting configuration data')
+            log.error(f'Cannot update state with "{device_state.value}" without first getting configuration data')
             return False
 
-        log.info(f'Updating device state with "{device_state.name}"')
+        log.info(f'Updating device state with "{device_state.value}"')
         r = self._pool.request('POST', Client.BASE_URL + 'v1/update_state',
-                               headers={'Content-Type': 'application/json'},
                                body=json.dumps({
                                    'device_group_id': str(self._device_group_metadata.device_group_id),
                                    'device_group_version': self._device_group_metadata.device_group_version,
-                                   'action': device_state.name,
+                                   'action': device_state.value,
                                }).encode('utf-8'))
-        if r.status == 200:
+        if r.status in [200, 204]:
             return True
         else:
-            log.error(f'Failed to update state with "{device_state.name}". '
+            log.error(f'Failed to update state with "{device_state.value}". '
                       f'Received response {r.status}: "{r.data.decode("utf-8")}"')
             return False
 

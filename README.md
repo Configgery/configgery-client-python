@@ -19,7 +19,7 @@ you can fetch those same configurations.
 ```python
 from configgery.client import Client
 
-client = Client('/path/to/configurations_dir', '/path/to/device.cert.pem', '/path/to/device.private.key')
+client = Client('/path/to/configurations_dir', API_KEY)
 client.download_configurations()
 ```
 
@@ -28,7 +28,7 @@ client.download_configurations()
 ```python
 from configgery.client import Client
 
-client = Client('/path/to/configurations_dir', '/path/to/device.cert.pem', '/path/to/device.private.key')
+client = Client('/path/to/configurations_dir', API_KEY)
 client.check_latest()
 print(client.is_download_needed())
 ```
@@ -38,7 +38,7 @@ print(client.is_download_needed())
 ```python
 from configgery.client import Client
 
-client = Client('/path/to/configurations_dir', '/path/to/device.cert.pem', '/path/to/device.private.key')
+client = Client('/path/to/configurations_dir', API_KEY)
 success, data = client.get_configuration('myconfiguration.json')
 
 if success:
@@ -51,9 +51,9 @@ else:
 ```python
 from configgery.client import Client, DeviceState
 
-client = Client('/path/to/configurations_dir', '/path/to/device.cert.pem', '/path/to/device.private.key')
+client = Client('/path/to/configurations_dir', API_KEY)
 client.download_configurations()
-client.update_state(DeviceState.ConfigurationsApplied)
+client.update_state(DeviceState.Configurations_Applied)
 
 if device_happy():  # your own check
     client.update_state(DeviceState.Upvote)
