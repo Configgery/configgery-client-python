@@ -27,71 +27,71 @@ class DeviceGroupMetadata(NamedTuple):
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'device_group_id': str(self.device_group_id),
-            'device_group_version': self.device_group_version,
-            'configurations_metadata': [
+            "device_group_id": str(self.device_group_id),
+            "device_group_version": self.device_group_version,
+            "configurations_metadata": [
                 {
-                    'configuration_id': str(config.configuration_id),
-                    'path': config.path,
-                    'md5': config.md5,
-                    'version': config.version,
-                    'alias': config.alias,
+                    "configuration_id": str(config.configuration_id),
+                    "path": config.path,
+                    "md5": config.md5,
+                    "version": config.version,
+                    "alias": config.alias,
                 }
                 for config in sorted(self.configurations_metadata, key=lambda x: x.path)
             ],
-            'last_checked': self.last_checked.isoformat(),
-            'version': CURRENT_CONFIG_FILE_VERSION,
+            "last_checked": self.last_checked.isoformat(),
+            "version": CURRENT_CONFIG_FILE_VERSION,
         }
 
     @classmethod
     def from_server(cls, data) -> DeviceGroupMetadata:
         return DeviceGroupMetadata(
-            device_group_id=UUID(data['device_group_id']),
-            device_group_version=data['device_group_version'],
+            device_group_id=UUID(data["device_group_id"]),
+            device_group_version=data["device_group_version"],
             configurations_metadata={
                 ConfigurationMetadata(
-                    configuration_id=UUID(config['configuration_id']),
-                    path=config['path'],
-                    md5=config['md5'],
-                    version=config['version'],
-                    alias=config.get('alias'),
+                    configuration_id=UUID(config["configuration_id"]),
+                    path=config["path"],
+                    md5=config["md5"],
+                    version=config["version"],
+                    alias=config.get("alias"),
                 )
-                for config in data['configurations']
+                for config in data["configurations"]
             },
-            last_checked=datetime.now(tz=timezone.utc)
+            last_checked=datetime.now(tz=timezone.utc),
         )
 
     @classmethod
     def from_dict(cls, data) -> DeviceGroupMetadata:
         return DeviceGroupMetadata(
-            device_group_id=UUID(data['device_group_id']),
-            device_group_version=data['device_group_version'],
+            device_group_id=UUID(data["device_group_id"]),
+            device_group_version=data["device_group_version"],
             configurations_metadata={
                 ConfigurationMetadata(
-                    configuration_id=UUID(config['configuration_id']),
-                    path=config['path'],
-                    md5=config['md5'],
-                    version=config['version'],
-                    alias=config.get('alias'),
+                    configuration_id=UUID(config["configuration_id"]),
+                    path=config["path"],
+                    md5=config["md5"],
+                    version=config["version"],
+                    alias=config.get("alias"),
                 )
-                for config in data['configurations_metadata']
+                for config in data["configurations_metadata"]
             },
-            last_checked=datetime.fromisoformat(data['last_checked'])
+            last_checked=datetime.fromisoformat(data["last_checked"]),
         )
 
 
 def load_metadata_file(file: Path) -> Optional[DeviceGroupMetadata]:
     try:
-        with file.open('r') as fp:
+        with file.open("r") as fp:
             data = json.load(fp)
     except (FileNotFoundError, PermissionError, json.JSONDecodeError):
-        log.exception(f'Unable to read cached configuration data')
+        log.exception(f"Unable to read cached configuration data")
         return None
     else:
-        if data['version'] != CURRENT_CONFIG_FILE_VERSION:
+        if data["version"] != CURRENT_CONFIG_FILE_VERSION:
             log.warning(f'Invalid file version {data["version"]}')
             return None
-        elif 'device_group_id' in data:
+        elif "device_group_id" in data:
             return DeviceGroupMetadata.from_dict(data)
         else:
             return None
@@ -99,6 +99,6 @@ def load_metadata_file(file: Path) -> Optional[DeviceGroupMetadata]:
 
 def save_metadata_file(metadata: DeviceGroupMetadata, file: Path):
     if metadata is not None:
-        log.info('Saving configuration data')
+        log.info("Saving configuration data")
         data = metadata.to_dict()
         file.write_text(json.dumps(data, indent=2))

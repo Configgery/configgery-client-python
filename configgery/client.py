@@ -34,7 +34,7 @@ class DeviceState(str, Enum):
 
 
 class Client:
-    BASE_URL = 'https://api.configgery.com/device/'
+    BASE_URL = "https://api.configgery.com/device/"
 
     def __init__(self, api_key: str, configurations_directory: Union[str, Path, None] = None):
         """
@@ -43,9 +43,7 @@ class Client:
         user's home directory.
         """
         self._state: State = State.Outdated
-        self._pool = PoolManager(headers={
-            "Authorization": f"Basic {api_key}"
-        })
+        self._pool = PoolManager(headers={"Authorization": f"Basic {api_key}"})
         self._device_group_metadata: Optional[DeviceGroupMetadata] = None
 
         if configurations_directory is None:
@@ -55,25 +53,25 @@ class Client:
         else:
             root_directory = configurations_directory
 
-        self._configurations_directory = root_directory.joinpath('configurations')
+        self._configurations_directory = root_directory.joinpath("configurations")
         self._configurations_directory.mkdir(parents=True, exist_ok=True)
-        self._configurations_metadata_file = root_directory.joinpath('configurations.json')
+        self._configurations_metadata_file = root_directory.joinpath("configurations.json")
 
         if self._configurations_metadata_file.exists():
-            log.info('Loading cached configuration data')
+            log.info("Loading cached configuration data")
             self._device_group_metadata = load_metadata_file(self._configurations_metadata_file)
         else:
-            log.info('No cached configuration data found')
+            log.info("No cached configuration data found")
 
     def _remove_old_configurations(self):
-        log.info('Removing old configurations')
+        log.info("Removing old configurations")
         if self._device_group_metadata is None:
-            log.error('Unable to remove old configurations without device group metadata')
+            log.error("Unable to remove old configurations without device group metadata")
             return
 
         valid_paths = {config.path for config in self._device_group_metadata.configurations_metadata}
         if self._device_group_metadata is not None:
-            for file in chain(self._configurations_directory.glob('**/*'), self._configurations_directory.glob('*')):
+            for file in chain(self._configurations_directory.glob("**/*"), self._configurations_directory.glob("*")):
                 try:
                     rel_path = file.relative_to(self._configurations_directory)
                     if file.is_file() and str(rel_path) not in valid_paths:
@@ -115,10 +113,10 @@ class Client:
         :return: True if it was possible to retrieve configuration data from the server
         :raises urllib3.exceptions.HTTPError:
         """
-        log.info('Checking for latest configuration data')
-        r: BaseHTTPResponse = self._pool.request('GET', Client.BASE_URL + 'v1/current_configurations')
+        log.info("Checking for latest configuration data")
+        r: BaseHTTPResponse = self._pool.request("GET", Client.BASE_URL + "v1/current_configurations")
         if r.status == 200:
-            data = json.loads(r.data.decode('utf-8'))
+            data = json.loads(r.data.decode("utf-8"))
             self._device_group_metadata = DeviceGroupMetadata.from_server(data)
             save_metadata_file(self._device_group_metadata, self._configurations_metadata_file)
             self._state = State.MetadataDownloaded
@@ -157,25 +155,30 @@ class Client:
         for config in self.outdated_configurations():
             path = self._configurations_directory.joinpath(config.path)
             path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open('wb') as fp:
-                r = self._pool.request('GET', Client.BASE_URL + 'v1/configuration', fields={
-                    'configuration_id': config.configuration_id,
-                    'version': config.version
-                })
+            with path.open("wb") as fp:
+                r = self._pool.request(
+                    "GET",
+                    Client.BASE_URL + "v1/configuration",
+                    fields={"configuration_id": config.configuration_id, "version": config.version},
+                )
                 if r.status == 200:
                     fp.write(r.data)
                 else:
-                    log.error((f'Failed to get configuration "{config.configuration_id}" version {config.version}. '
-                               f'Received response {r.status}: "{r.data.decode("utf-8")}"'))
+                    log.error(
+                        (
+                            f'Failed to get configuration "{config.configuration_id}" version {config.version}. '
+                            f'Received response {r.status}: "{r.data.decode("utf-8")}"'
+                        )
+                    )
                     self._state = State.Invalid_FailedToDownload
                     all_ok = False
                     break
 
-        if hasattr(os, 'sync'):
+        if hasattr(os, "sync"):
             os.sync()
 
         if all_ok:
-            log.info('Configurations downloaded')
+            log.info("Configurations downloaded")
             self._state = State.Valid
             return True
         else:
@@ -193,17 +196,24 @@ class Client:
             return False
 
         log.info(f'Updating device state with "{device_state.value}"')
-        r = self._pool.request('POST', Client.BASE_URL + 'v1/update_state',
-                               body=json.dumps({
-                                   'device_group_id': str(self._device_group_metadata.device_group_id),
-                                   'device_group_version': self._device_group_metadata.device_group_version,
-                                   'action': device_state.value,
-                               }).encode('utf-8'))
+        r = self._pool.request(
+            "POST",
+            Client.BASE_URL + "v1/update_state",
+            body=json.dumps(
+                {
+                    "device_group_id": str(self._device_group_metadata.device_group_id),
+                    "device_group_version": self._device_group_metadata.device_group_version,
+                    "action": device_state.value,
+                }
+            ).encode("utf-8"),
+        )
         if r.status in [200, 204]:
             return True
         else:
-            log.error(f'Failed to update state with "{device_state.value}". '
-                      f'Received response {r.status}: "{r.data.decode("utf-8")}"')
+            log.error(
+                f'Failed to update state with "{device_state.value}". '
+                f'Received response {r.status}: "{r.data.decode("utf-8")}"'
+            )
             return False
 
     def get_configuration(self, path: str) -> Tuple[bool, bytes]:
@@ -219,11 +229,11 @@ class Client:
         """
         if self._device_group_metadata is None:
             log.error(f'Cannot get configuration "{path}" without first getting configuration data')
-            return False, b''
+            return False, b""
 
         if self.is_download_needed():
             log.error(f'Cannot get configuration "{path}" with outdated configurations')
-            return False, b''
+            return False, b""
 
         for config in self._device_group_metadata.configurations_metadata:
             if config.path == path:
