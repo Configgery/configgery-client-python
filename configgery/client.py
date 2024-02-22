@@ -27,7 +27,7 @@ class State(Enum):
     Invalid_FailedToDownload = auto()
 
 
-class DeviceState(str, Enum):
+class ClientState(str, Enum):
     Configurations_Applied = "configurations_applied"
     Upvote = "upvote"
     Downvote = "downvote"
@@ -184,7 +184,7 @@ class Client:
         else:
             return False
 
-    def update_state(self, device_state: DeviceState) -> bool:
+    def update_state(self, device_state: ClientState) -> bool:
         """
         Communicate to the server with the current device state
         :param device_state: An enum value indicating the new state

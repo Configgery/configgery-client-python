@@ -8,18 +8,18 @@ $ pip install configgery-client
 
 ## Getting Started
 
-This library allows you to fetch the latest set of configurations for your device. 
+This library allows you to fetch the latest set of configurations for your client. 
 
-First, create a device at [configgery.com](configgery.com) 
-and store the generated private key and certificate in a safe place. 
-Then, once you've added configurations to your device's group, 
+First, create a client at [configgery.com](configgery.com) 
+and store the generated API key in a safe place. 
+Then, once you've added configurations to your Client Group, 
 you can fetch those same configurations.
 
 ### Fetching configurations
 ```python
 from configgery.client import Client
 
-client = Client('/path/to/configurations_dir', API_KEY)
+client = Client(API_KEY, "/path/to/store/configurations")
 client.download_configurations()
 ```
 
@@ -28,7 +28,7 @@ client.download_configurations()
 ```python
 from configgery.client import Client
 
-client = Client('/path/to/configurations_dir', API_KEY)
+client = Client(API_KEY, "/path/to/store/configurations")
 client.check_latest()
 print(client.is_download_needed())
 ```
@@ -38,7 +38,7 @@ print(client.is_download_needed())
 ```python
 from configgery.client import Client
 
-client = Client('/path/to/configurations_dir', API_KEY)
+client = Client(API_KEY, "/path/to/store/configurations")
 success, data = client.get_configuration('myconfiguration.json')
 
 if success:
@@ -48,16 +48,17 @@ else:
 ```
 
 ### Updating state
-```python
-from configgery.client import Client, DeviceState
 
-client = Client('/path/to/configurations_dir', API_KEY)
+```python
+from configgery.client import Client, ClientState
+
+client = Client(API_KEY, "/path/to/store/configurations")
 client.download_configurations()
-client.update_state(DeviceState.Configurations_Applied)
+client.update_state(ClientState.Configurations_Applied)
 
 if device_happy():  # your own check
-    client.update_state(DeviceState.Upvote)
+    client.update_state(ClientState.Upvote)
 else:
-    client.update_state(DeviceState.Downvote)
+    client.update_state(ClientState.Downvote)
 ```
 

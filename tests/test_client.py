@@ -10,7 +10,7 @@ from uuid import UUID
 import pytest
 from freezegun import freeze_time
 
-from configgery.client import Client, DeviceGroupMetadata, ConfigurationMetadata, DeviceState
+from configgery.client import Client, DeviceGroupMetadata, ConfigurationMetadata, ClientState
 from tests.FakeHTTPResponse import FakeHTTPResponse
 
 
@@ -312,9 +312,9 @@ def test_update_state(configuration_directory):
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
         mock_poolmanager.request.side_effect = [FakeHTTPResponse(status=200, data=b"OK")]
-        assert c.update_state(DeviceState.Configurations_Applied)
+        assert c.update_state(ClientState.Configurations_Applied)
 
 
 def test_update_state_fails_without_cached_configuration_data(configuration_directory):
     c = Client("fake_api_key", configuration_directory)
-    assert not c.update_state(DeviceState.Configurations_Applied)
+    assert not c.update_state(ClientState.Configurations_Applied)
