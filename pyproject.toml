@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "configgery-client"
-version = "2.0.0"
+version = "2.1.0"
 description = "Python client for devices interacting with configgery.com"
 authors = ["Robert Weiss <rob@configgery.com>"]
 license = "MIT License"
