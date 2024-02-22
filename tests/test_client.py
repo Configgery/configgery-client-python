@@ -54,7 +54,7 @@ def all_files_and_dirs(d):
 
 
 def test_init_no_previous_configurations(configuration_directory):
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
     assert c._device_group_metadata is None
 
 
@@ -62,7 +62,7 @@ def test_init_with_configurations(configuration_directory):
     now = datetime.now(tz=timezone.utc)
     write_metadata(configuration_directory, default_device_group_metadata(last_checked=now))
     with freeze_time(now):
-        c = Client(configuration_directory, Path('/cert'), Path('/key'))
+        c = Client("fake_api_key", configuration_directory)
     assert c._device_group_metadata is not None
     assert c._device_group_metadata == DeviceGroupMetadata(
         device_group_id=UUID('85ffb504-cc91-4710-a0e7-e05599b19d0b'),
@@ -100,7 +100,7 @@ def test_init_with_wrong_file_version(configuration_directory, version, loaded):
     m['version'] = version
     write_metadata(configuration_directory, m)
 
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
     if loaded:
         assert c._device_group_metadata is not None
     else:
@@ -112,7 +112,7 @@ def test_init_with_corrupt_file(configuration_directory):
     del m['device_group_id']
     write_metadata(configuration_directory, m)
 
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
     assert c._device_group_metadata is None
 
 
@@ -126,7 +126,7 @@ def test_outdated_configurations(configuration_directory):
     with configuration_directory.joinpath('configurations', m['configurations_metadata'][1]['path']).open('wb') as fp:
         fp.write(b'invalid_data')
 
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
     assert c.is_download_needed()
     outdated_configurations = list(c.outdated_configurations())
     assert len(outdated_configurations) == 1
@@ -155,7 +155,7 @@ def test_remove_old_files_and_dirs(configuration_directory):
 
     configurations_dir.joinpath('dir1/dir2/dir3').mkdir(parents=True)
 
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
     c._remove_old_configurations()
 
     assert all_files_and_dirs(configurations_dir) == {
@@ -167,7 +167,7 @@ def test_remove_old_files_and_dirs(configuration_directory):
 def test_check_latest(configuration_directory):
     now = datetime.now(tz=timezone.utc)
 
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
     assert c._device_group_metadata is None
 
     with MagicMock() as mock_poolmanager:
@@ -236,7 +236,7 @@ def test_download_new_configurations(configuration_directory):
     with configurations_dir.joinpath('oldfile.json').open('wb') as fp:
         fp.write(b'hello world')
 
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
     assert c.is_download_needed()
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
@@ -266,7 +266,7 @@ def test_make_parent_directories_for_configuration_metadata():
     with tempfile.TemporaryDirectory() as d:
         configuration_directory = Path(d).joinpath('a/b/c')
         assert not configuration_directory.exists()
-        _ = Client(configuration_directory, Path('/cert'), Path('/key'))
+        _ = Client("fake_api_key", configuration_directory)
         assert configuration_directory.exists()
 
 
@@ -280,7 +280,7 @@ def test_make_parent_directories_for_configuration_files(configuration_directory
     })
     write_metadata(configuration_directory, m)
 
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
 
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
@@ -315,7 +315,7 @@ def test_update_state(configuration_directory):
     m = default_device_group_metadata()
     write_metadata(configuration_directory, m)
 
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
+    c = Client("fake_api_key", configuration_directory)
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
         mock_poolmanager.request.side_effect = [
@@ -324,9 +324,9 @@ def test_update_state(configuration_directory):
                 data=b'OK'
             )
         ]
-        assert c.update_state(DeviceState.ConfigurationsApplied)
+        assert c.update_state(DeviceState.Configurations_Applied)
 
 
 def test_update_state_fails_without_cached_configuration_data(configuration_directory):
-    c = Client(configuration_directory, Path('/cert'), Path('/key'))
-    assert not c.update_state(DeviceState.ConfigurationsApplied)
+    c = Client("fake_api_key", configuration_directory)
+    assert not c.update_state(DeviceState.Configurations_Applied)
