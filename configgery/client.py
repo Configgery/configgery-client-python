@@ -36,10 +36,11 @@ class DeviceState(str, Enum):
 class Client:
     BASE_URL = 'https://api.configgery.com/device/'
 
-    def __init__(self, configurations_directory: Union[str, Path], api_key: str):
+    def __init__(self, api_key: str, configurations_directory: Union[str, Path, None] = None):
         """
-        :param configurations_directory: Directory to store configuration files
         :param api_key: API key for the device
+        :param configurations_directory: Directory to store configuration files. If None, use '.configgery' within the
+        user's home directory.
         """
         self._state: State = State.Outdated
         self._pool = PoolManager(headers={
@@ -47,7 +48,13 @@ class Client:
         })
         self._device_group_metadata: Optional[DeviceGroupMetadata] = None
 
-        root_directory = Path(configurations_directory)
+        if configurations_directory is None:
+            root_directory = Path.home() / ".configgery"
+        elif isinstance(configurations_directory, str):
+            root_directory = Path(configurations_directory)
+        else:
+            root_directory = configurations_directory
+
         self._configurations_directory = root_directory.joinpath('configurations')
         self._configurations_directory.mkdir(parents=True, exist_ok=True)
         self._configurations_metadata_file = root_directory.joinpath('configurations.json')
