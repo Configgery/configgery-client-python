@@ -10,10 +10,10 @@ $ pip install configgery-client
 
 This library allows you to fetch the latest set of configurations for your client. 
 
-First, create a client at [configgery.com](configgery.com) 
-and store the generated API key in a safe place. 
-Then, once you've added configurations to your Client Group, 
-you can fetch those same configurations.
+First, add some configurations to a Client Group [configgery.com](configgery.com)
+Then, use this library to fetch those same configurations.
+
+Once a client has identified itself, you will see it in the client list at <a>configgery.com/<org_name>/clients/</a>.
 
 ### Fetching configurations
 ```python
