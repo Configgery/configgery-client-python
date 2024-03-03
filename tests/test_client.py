@@ -167,6 +167,42 @@ def test_remove_old_files_and_dirs(configuration_directory):
     }
 
 
+def test_must_identify_first(configuration_directory):
+    c = Client("fake_api_key", configuration_directory)
+    assert c._device_group_metadata is None
+
+    with pytest.raises(ValueError):
+        assert c.check_latest()
+
+    with MagicMock() as mock_poolmanager:
+        c._pool = mock_poolmanager
+        mock_poolmanager.request.side_effect = [
+            FakeHTTPResponse(
+                status=200,
+                data=json.dumps(
+                    {
+                        "id": "621a4632-0049-4cb7-b232-3db0c3d27ade",
+                    },
+                    indent=2,
+                ).encode(),
+            ),
+            FakeHTTPResponse(
+                status=200,
+                data=json.dumps(
+                    {
+                        "device_group_id": "85ffb504-cc91-4710-a0e7-e05599b19d0b",
+                        "device_group_version": 1,
+                        "configurations": [],
+                    },
+                    indent=2,
+                ).encode(),
+            ),
+        ]
+
+        c.identify("my_client")
+        assert c.check_latest()
+
+
 def test_check_latest(configuration_directory):
     now = datetime.now(tz=timezone.utc)
 
@@ -176,6 +212,15 @@ def test_check_latest(configuration_directory):
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
         mock_poolmanager.request.side_effect = [
+            FakeHTTPResponse(
+                status=200,
+                data=json.dumps(
+                    {
+                        "id": "621a4632-0049-4cb7-b232-3db0c3d27ade",
+                    },
+                    indent=2,
+                ).encode(),
+            ),
             FakeHTTPResponse(
                 status=200,
                 data=json.dumps(
@@ -200,9 +245,10 @@ def test_check_latest(configuration_directory):
                     },
                     indent=2,
                 ).encode(),
-            )
+            ),
         ]
 
+        c.identify("my_device")
         with freeze_time(now):
             assert c.check_latest()
 
@@ -247,9 +293,19 @@ def test_download_new_configurations(configuration_directory):
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
         mock_poolmanager.request.side_effect = [
+            FakeHTTPResponse(
+                status=200,
+                data=json.dumps(
+                    {
+                        "id": "621a4632-0049-4cb7-b232-3db0c3d27ade",
+                    },
+                    indent=2,
+                ).encode(),
+            ),
             FakeHTTPResponse(status=200, data=b"{\n}"),
             FakeHTTPResponse(status=200, data=b"{}"),
         ]
+        c.identify("my_device")
         assert c.download_configurations()
 
     assert all_files_and_dirs(configurations_dir) == {
@@ -287,10 +343,20 @@ def test_make_parent_directories_for_configuration_files(configuration_directory
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
         mock_poolmanager.request.side_effect = [
+            FakeHTTPResponse(
+                status=200,
+                data=json.dumps(
+                    {
+                        "id": "621a4632-0049-4cb7-b232-3db0c3d27ade",
+                    },
+                    indent=2,
+                ).encode(),
+            ),
             FakeHTTPResponse(status=200, data=b"{}"),
             FakeHTTPResponse(status=200, data=b"{\n}"),
             FakeHTTPResponse(status=200, data=b"{}"),
         ]
+        c.identify("my_device")
         assert c.download_configurations()
 
     configurations_dir = configuration_directory.joinpath("configurations")
@@ -311,7 +377,19 @@ def test_update_state(configuration_directory):
     c = Client("fake_api_key", configuration_directory)
     with MagicMock() as mock_poolmanager:
         c._pool = mock_poolmanager
-        mock_poolmanager.request.side_effect = [FakeHTTPResponse(status=200, data=b"OK")]
+        mock_poolmanager.request.side_effect = [
+            FakeHTTPResponse(
+                status=200,
+                data=json.dumps(
+                    {
+                        "id": "621a4632-0049-4cb7-b232-3db0c3d27ade",
+                    },
+                    indent=2,
+                ).encode(),
+            ),
+            FakeHTTPResponse(status=200, data=b"OK"),
+        ]
+        c.identify("my_device")
         assert c.update_state(ClientState.Configurations_Applied)
 
 

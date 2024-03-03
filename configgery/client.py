@@ -9,6 +9,7 @@ from enum import Enum, auto
 from itertools import chain
 from pathlib import Path
 from typing import Optional, Generator, Union, Tuple
+from urllib.parse import urlencode
 
 from urllib3 import PoolManager, BaseHTTPResponse
 
@@ -33,17 +34,32 @@ class ClientState(str, Enum):
     Downvote = "downvote"
 
 
+class _IdentityManager:
+    def __init__(self):
+        self._id: Optional[str] = None
+
+    def set_id(self, id: str):
+        self._id = id
+
+    def get_id(self) -> str:
+        if self._id is None:
+            raise ValueError("Client must be identified first. Please call Client.identify first")
+        else:
+            return self._id
+
+
 class Client:
     BASE_URL = "https://api.configgery.com/device/"
 
-    def __init__(self, api_key: str, configurations_directory: Union[str, Path, None] = None):
+    def __init__(self, sdk_key: str, configurations_directory: Union[str, Path, None] = None):
         """
-        :param api_key: API key for the device
+        :param sdk_key: API key for the organization
         :param configurations_directory: Directory to store configuration files. If None, use '.configgery' within the
         user's home directory.
         """
         self._state: State = State.Outdated
-        self._pool = PoolManager(headers={"Authorization": f"Basic {api_key}"})
+        self._pool = PoolManager(headers={"X-API-KEY": sdk_key})
+        self._client_id_manager = _IdentityManager()
         self._device_group_metadata: Optional[DeviceGroupMetadata] = None
 
         if configurations_directory is None:
@@ -107,6 +123,26 @@ class Client:
             return True
         return False
 
+    def identify(self, client_name: str):
+        """
+        Identify client to the server with the specified `client_name`. This is a value of your choosing, and should be
+        chosen to help you identify which client is making the request(s).
+
+        For example, for an IoT device you may wish to use the device's serial number as the `client_name`.
+        :param client_name: A name for the current client
+        :return: None
+        :raises ValueError:
+        """
+        log.info(f"Identifying as {client_name}")
+        r: BaseHTTPResponse = self._pool.request(
+            "POST", Client.BASE_URL + "v1/identify", json={"client_name": client_name}
+        )
+        if r.status == 200:
+            data = json.loads(r.data.decode("utf-8"))
+            self._client_id_manager.set_id(data["id"])
+        else:
+            raise ValueError(f"Could not identify client as {client_name}")
+
     def check_latest(self) -> bool:
         """
         Check to see if the current configuration data matches that on the server.
@@ -114,7 +150,11 @@ class Client:
         :raises urllib3.exceptions.HTTPError:
         """
         log.info("Checking for latest configuration data")
-        r: BaseHTTPResponse = self._pool.request("GET", Client.BASE_URL + "v1/current_configurations")
+        r: BaseHTTPResponse = self._pool.request(
+            "GET",
+            Client.BASE_URL + "v1/current_configurations",
+            fields=dict(client_id=self._client_id_manager.get_id()),
+        )
         if r.status == 200:
             data = json.loads(r.data.decode("utf-8"))
             self._device_group_metadata = DeviceGroupMetadata.from_server(data)
@@ -159,7 +199,11 @@ class Client:
                 r = self._pool.request(
                     "GET",
                     Client.BASE_URL + "v1/configuration",
-                    fields={"configuration_id": config.configuration_id, "version": config.version},
+                    fields=dict(
+                        configuration_id=config.configuration_id,
+                        version=config.version,
+                        client_id=self._client_id_manager.get_id(),
+                    ),
                 )
                 if r.status == 200:
                     fp.write(r.data)
@@ -198,7 +242,7 @@ class Client:
         log.info(f'Updating device state with "{device_state.value}"')
         r = self._pool.request(
             "POST",
-            Client.BASE_URL + "v1/update_state",
+            Client.BASE_URL + "v1/update_state?" + urlencode(dict(client_id=self._client_id_manager.get_id())),
             body=json.dumps(
                 {
                     "device_group_id": str(self._device_group_metadata.device_group_id),
