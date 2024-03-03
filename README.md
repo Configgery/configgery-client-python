@@ -28,7 +28,8 @@ client.download_configurations()
 ```python
 from configgery.client import Client
 
-client = Client(API_KEY, "/path/to/store/configurations")
+client = Client(SDK_KEY, "/path/to/store/configurations")
+client.identify("my_client_name")
 client.check_latest()
 print(client.is_download_needed())
 ```
@@ -38,7 +39,8 @@ print(client.is_download_needed())
 ```python
 from configgery.client import Client
 
-client = Client(API_KEY, "/path/to/store/configurations")
+client = Client(SDK_KEY, "/path/to/store/configurations")
+client.identify("my_client_name")
 success, data = client.get_configuration('myconfiguration.json')
 
 if success:
@@ -52,7 +54,8 @@ else:
 ```python
 from configgery.client import Client, ClientState
 
-client = Client(API_KEY, "/path/to/store/configurations")
+client = Client(SDK_KEY, "/path/to/store/configurations")
+client.identify("my_client_name")
 client.download_configurations()
 client.update_state(ClientState.Configurations_Applied)
 
